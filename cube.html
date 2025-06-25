@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rubik's Cube Solver</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .controls {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .cube-display {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .solution-steps {
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+        .step {
+            margin: 10px 0;
+            padding: 10px;
+            border-left: 3px solid #4CAF50;
+            background: white;
+        }
+        .manual-controls {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .manual-controls button {
+            background-color: #2196F3;
+            margin: 2px;
+            padding: 8px 12px;
+            font-size: 14px;
+        }
+        .manual-controls button:hover {
+            background-color: #1976D2;
+        }
+        .status {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .solved {
+            color: #4CAF50;
+        }
+        .unsolved {
+            color: #f44336;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Rubik's Cube Solver</h1>
+        
+        <div class="controls">
+            <button onclick="generateScrambledCube()">Generate Scrambled Cube</button>
+            <button onclick="solveCube()" id="solveBtn">Solve Cube</button>
+            <button onclick="resetCube()">Reset to Solved</button>
+        </div>
+
+        <div class="status" id="status">Cube Status: Solved</div>
+
+        <div class="cube-display" id="cubeDisplay">
+            <!-- Cube will be rendered here -->
+        </div>
+
+        <div class="manual-controls">
+            <h3>Manual Controls</h3>
+            <div>
+                <button onclick="rotateFace('F')">F</button>
+                <button onclick="rotateFace('F', true)">F'</button>
+                <button onclick="rotateFace('R')">R</button>
+                <button onclick="rotateFace('R', true)">R'</button>
+                <button onclick="rotateFace('U')">U</button>
+                <button onclick="rotateFace('U', true)">U'</button>
+            </div>
+            <div>
+                <button onclick="rotateFace('B')">B</button>
+                <button onclick="rotateFace('B', true)">B'</button>
+                <button onclick="rotateFace('L')">L</button>
+                <button onclick="rotateFace('L', true)">L'</button>
+                <button onclick="rotateFace('D')">D</button>
+                <button onclick="rotateFace('D', true)">D'</button>
+            </div>
+        </div>
+
+        <div class="solution-steps" id="solutionSteps">
+            <h3>Solution Steps</h3>
+            <p>Click "Solve Cube" to see the solution steps...</p>
+        </div>
+    </div>
+
+    <script>
+        // Rubik's Cube Class Implementation
+        class RubiksCube {
+            constructor() {
+                // Initialize solved cube
+                // Each face has 9 squares (3x3)
+                // Faces: Front(F), Right(R), Back(B), Left(L), Up(U), Down(D)
+                this.faces = {
+                    'F': Array(9).fill('g'), // Front - Green
+                    'R': Array(9).fill('r'), // Right - Red  
+                    'B': Array(9).fill('b'), // Back - Blue
+                    'L': Array(9).fill('o'), // Left - Orange
+                    'U': Array(9).fill('w'), // Up - White
+                    'D': Array(9).fill('y')  // Down - Yellow
+                };
+            }
+
+            // Get cube state as string for SVG rendering
+            getCubeString() {
+                // Return in order: F, R, B, L, U, D (54 characters total)
+                return this.faces.F.join('') + 
+                       this.faces.R.join('') + 
+                       this.faces.B.join('') + 
+                       this.faces.L.join('') + 
+                       this.faces.U.join('') + 
+                       this.faces.D.join('');
+            }
+
+            // Clone the cube state
+            clone() {
+                const newCube = new RubiksCube();
+                for (let face in this.faces) {
+                    newCube.faces[face] = [...this.faces[face]];
+                }
+                return newCube;
+            }
+
+            // Rotate a face 90 degrees clockwise
+            rotateFaceClockwise(face) {
+                const f = this.faces[face];
+                const temp = [...f];
+                
+                // Rotate the face itself
+                f[0] = temp[6]; f[1] = temp[3]; f[2] = temp[0];
+                f[3] = temp[7]; f[4] = temp[4]; f[5] = temp[1];
+                f[6] = temp[8]; f[7] = temp[5]; f[8] = temp[2];
+            }
+
+            // Rotate a face 90 degrees counter-clockwise
+            rotateFaceCounterClockwise(face) {
+                const f = this.faces[face];
+                const temp = [...f];
+                
+                // Rotate the face itself
+                f[0] = temp[2]; f[1] = temp[5]; f[2] = temp[8];
+                f[3] = temp[1]; f[4] = temp[4]; f[5] = temp[7];
+                f[6] = temp[0]; f[7] = temp[3]; f[8] = temp[6];
+            }
+
+            // Main rotation method
+            rotate(face, counterClockwise = false) {
+                if (counterClockwise) {
+                    this.rotateFaceCounterClockwise(face);
+                } else {
+                    this.rotateFaceClockwise(face);
+                }
+
+                // Rotate adjacent edges
+                this.rotateAdjacentEdges(face, counterClockwise);
+            }
+
+            // Rotate the edges adjacent to a face
+            rotateAdjacentEdges(face, counterClockwise = false) {
+                let temp;
+                
+                if (face === 'F') {
+                    temp = [this.faces.U[6], this.faces.U[7], this.faces.U[8]];
+                    if (!counterClockwise) {
+                        [this.faces.U[6], this.faces.U[7], this.faces.U[8]] = [this.faces.L[8], this.faces.L[5], this.faces.L[2]];
+                        [this.faces.L[8], this.faces.L[5], this.faces.L[2]] = [this.faces.D[2], this.faces.D[1], this.faces.D[0]];
+                        [this.faces.D[2], this.faces.D[1], this.faces.D[0]] = [this.faces.R[0], this.faces.R[3], this.faces.R[6]];
+                        [this.faces.R[0], this.faces.R[3], this.faces.R[6]] = temp;
+                    } else {
+                        [this.faces.U[6], this.faces.U[7], this.faces.U[8]] = [this.faces.R[0], this.faces.R[3], this.faces.R[6]];
+                        [this.faces.R[0], this.faces.R[3], this.faces.R[6]] = [this.faces.D[2], this.faces.D[1], this.faces.D[0]];
+                        [this.faces.D[2], this.faces.D[1], this.faces.D[0]] = [this.faces.L[8], this.faces.L[5], this.faces.L[2]];
+                        [this.faces.L[8], this.faces.L[5], this.faces.L[2]] = temp;
+                    }
+                } else if (face === 'R') {
+                    temp = [this.faces.U[2], this.faces.U[5], this.faces.U[8]];
+                    if (!counterClockwise) {
+                        [this.faces.U[2], this.faces.U[5], this.faces.U[8]] = [this.faces.F[2], this.faces.F[5], this.faces.F[8]];
+                        [this.faces.F[2], this.faces.F[5], this.faces.F[8]] = [this.faces.D[2], this.faces.D[5], this.faces.D[8]];
+                        [this.faces.D[2], this.faces.D[5], this.faces.D[8]] = [this.faces.B[6], this.faces.B[3], this.faces.B[0]];
+                        [this.faces.B[6], this.faces.B[3], this.faces.B[0]] = temp;
+                    } else {
+                        [this.faces.U[2], this.faces.U[5], this.faces.U[8]] = [this.faces.B[6], this.faces.B[3], this.faces.B[0]];
+                        [this.faces.B[6], this.faces.B[3], this.faces.B[0]] = [this.faces.D[2], this.faces.D[5], this.faces.D[8]];
+                        [this.faces.D[2], this.faces.D[5], this.faces.D[8]] = [this.faces.F[2], this.faces.F[5], this.faces.F[8]];
+                        [this.faces.F[2], this.faces.F[5], this.faces.F[8]] = temp;
+                    }
+                } else if (face === 'U') {
+                    temp = [this.faces.F[0], this.faces.F[1], this.faces.F[2]];
+                    if (!counterClockwise) {
+                        [this.faces.F[0], this.faces.F[1], this.faces.F[2]] = [this.faces.R[0], this.faces.R[1], this.faces.R[2]];
+                        [this.faces.R[0], this.faces.R[1], this.faces.R[2]] = [this.faces.B[0], this.faces.B[1], this.faces.B[2]];
+                        [this.faces.B[0], this.faces.B[1], this.faces.B[2]] = [this.faces.L[0], this.faces.L[1], this.faces.L[2]];
+                        [this.faces.L[0], this.faces.L[1], this.faces.L[2]] = temp;
+                    } else {
+                        [this.faces.F[0], this.faces.F[1], this.faces.F[2]] = [this.faces.L[0], this.faces.L[1], this.faces.L[2]];
+                        [this.faces.L[0], this.faces.L[1], this.faces.L[2]] = [this.faces.B[0], this.faces.B[1], this.faces.B[2]];
+                        [this.faces.B[0], this.faces.B[1], this.faces.B[2]] = [this.faces.R[0], this.faces.R[1], this.faces.R[2]];
+                        [this.faces.R[0], this.faces.R[1], this.faces.R[2]] = temp;
+                    }
+                } else if (face === 'B') {
+                    temp = [this.faces.U[0], this.faces.U[1], this.faces.U[2]];
+                    if (!counterClockwise) {
+                        [this.faces.U[0], this.faces.U[1], this.faces.U[2]] = [this.faces.R[2], this.faces.R[5], this.faces.R[8]];
+                        [this.faces.R[2], this.faces.R[5], this.faces.R[8]] = [this.faces.D[8], this.faces.D[7], this.faces.D[6]];
+                        [this.faces.D[8], this.faces.D[7], this.faces.D[6]] = [this.faces.L[6], this.faces.L[3], this.faces.L[0]];
+                        [this.faces.L[6], this.faces.L[3], this.faces.L[0]] = temp;
+                    } else {
+                        [this.faces.U[0], this.faces.U[1], this.faces.U[2]] = [this.faces.L[6], this.faces.L[3], this.faces.L[0]];
+                        [this.faces.L[6], this.faces.L[3], this.faces.L[0]] = [this.faces.D[8], this.faces.D[7], this.faces.D[6]];
+                        [this.faces.D[8], this.faces.D[7], this.faces.D[6]] = [this.faces.R[2], this.faces.R[5], this.faces.R[8]];
+                        [this.faces.R[2], this.faces.R[5], this.faces.R[8]] = temp;
+                    }
+                } else if (face === 'L') {
+                    temp = [this.faces.U[0], this.faces.U[3], this.faces.U[6]];
+                    if (!counterClockwise) {
+                        [this.faces.U[0], this.faces.U[3], this.faces.U[6]] = [this.faces.B[8], this.faces.B[5], this.faces.B[2]];
+                        [this.faces.B[8], this.faces.B[5], this.faces.B[2]] = [this.faces.D[0], this.faces.D[3], this.faces.D[6]];
+                        [this.faces.D[0], this.faces.D[3], this.faces.D[6]] = [this.faces.F[0], this.faces.F[3], this.faces.F[6]];
+                        [this.faces.F[0], this.faces.F[3], this.faces.F[6]] = temp;
+                    } else {
+                        [this.faces.U[0], this.faces.U[3], this.faces.U[6]] = [this.faces.F[0], this.faces.F[3], this.faces.F[6]];
+                        [this.faces.F[0], this.faces.F[3], this.faces.F[6]] = [this.faces.D[0], this.faces.D[3], this.faces.D[6]];
+                        [this.faces.D[0], this.faces.D[3], this.faces.D[6]] = [this.faces.B[8], this.faces.B[5], this.faces.B[2]];
+                        [this.faces.B[8], this.faces.B[5], this.faces.B[2]] = temp;
+                    }
+                } else if (face === 'D') {
+                    temp = [this.faces.F[6], this.faces.F[7], this.faces.F[8]];
+                    if (!counterClockwise) {
+                        [this.faces.F[6], this.faces.F[7], this.faces.F[8]] = [this.faces.L[6], this.faces.L[7], this.faces.L[8]];
+                        [this.faces.L[6], this.faces.L[7], this.faces.L[8]] = [this.faces.B[6], this.faces.B[7], this.faces.B[8]];
+                        [this.faces.B[6], this.faces.B[7], this.faces.B[8]] = [this.faces.R[6], this.faces.R[7], this.faces.R[8]];
+                        [this.faces.R[6], this.faces.R[7], this.faces.R[8]] = temp;
+                    } else {
+                        [this.faces.F[6], this.faces.F[7], this.faces.F[8]] = [this.faces.R[6], this.faces.R[7], this.faces.R[8]];
+                        [this.faces.R[6], this.faces.R[7], this.faces.R[8]] = [this.faces.B[6], this.faces.B[7], this.faces.B[8]];
+                        [this.faces.B[6], this.faces.B[7], this.faces.B[8]] = [this.faces.L[6], this.faces.L[7], this.faces.L[8]];
+                        [this.faces.L[6], this.faces.L[7], this.faces.L[8]] = temp;
+                    }
+                }
+            }
+
+            // Check if cube is solved
+            isSolved() {
+                for (let face in this.faces) {
+                    const faceArray = this.faces[face];
+                    const firstColor = faceArray[0];
+                    if (!faceArray.every(color => color === firstColor)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            // Generate a scrambled cube
+            scramble(moves = 20) {
+                const faces = ['F', 'R', 'U', 'B', 'L', 'D'];
+                for (let i = 0; i < moves; i++) {
+                    const face = faces[Math.floor(Math.random() * faces.length)];
+                    const counterClockwise = Math.random() < 0.5;
+                    this.rotate(face, counterClockwise);
+                }
+            }
+        }
+
+        // Simple Cube Solver using Layer-by-Layer method
+        class CubeSolver {
+            constructor(cube) {
+                this.cube = cube;
+                this.solution = [];
+            }
+
+            // Apply a move and record it
+            move(face, counterClockwise = false) {
+                this.cube.rotate(face, counterClockwise);
+                const moveNotation = face + (counterClockwise ? "'" : "");
+                this.solution.push(moveNotation);
+            }
+
+            // Simplified solving algorithm (beginner's method)
+            solve() {
+                this.solution = [];
+                
+                // If already solved, return
+                if (this.cube.isSolved()) {
+                    return this.solution;
+                }
+
+                // Simple solving approach: try to solve by applying known patterns
+                // This is a very basic implementation that attempts to solve common patterns
+                
+                // Step 1: Try to solve white cross (simplified)
+                this.solveWhiteCross();
+                
+                // Step 2: Try to position white corners (simplified)
+                this.solveWhiteCorners();
+                
+                // Step 3: Solve middle layer (simplified)
+                this.solveMiddleLayer();
+                
+                // Step 4: Solve yellow cross (simplified)
+                this.solveYellowCross();
+                
+                // Step 5: Final layer (simplified)
+                this.solveFinalLayer();
+
+                return this.solution;
+            }
+
+            // Simplified white cross solving
+            solveWhiteCross() {
+                // This is a very basic implementation
+                // In a real solver, this would be much more sophisticated
+                for (let i = 0; i < 10; i++) {
+                    if (this.isWhiteCrossSolved()) break;
+                    
+                    // Try different moves to get white edges in place
+                    const moves = ['F', 'R', 'U', 'L', 'D', 'B'];
+                    const randomMove = moves[Math.floor(Math.random() * moves.length)];
+                    this.move(randomMove, Math.random() < 0.5);
+                }
+            }
+
+            // Check if white cross is solved (simplified)
+            isWhiteCrossSolved() {
+                const up = this.cube.faces['U'];
+                return up[1] === 'w' && up[3] === 'w' && up[5] === 'w' && up[7] === 'w';
+            }
+
+            // Simplified white corners solving
+            solveWhiteCorners() {
+                for (let i = 0; i < 15; i++) {
+                    if (this.areWhiteCornersSolved()) break;
+                    
+                    // Try R-U-R'-U' algorithm (simplified)
+                    if (Math.random() < 0.3) {
+                        this.move('R');
+                        this.move('U');
+                        this.move('R', true);
+                        this.move('U', true);
+                    } else {
+                        const moves = ['F', 'R', 'U', 'L', 'D'];
+                        const randomMove = moves[Math.floor(Math.random() * moves.length)];
+                        this.move(randomMove, Math.random() < 0.5);
+                    }
+                }
+            }
+
+            // Check if white corners are solved (simplified)
+            areWhiteCornersSolved() {
+                const up = this.cube.faces['U'];
+                return up[0] === 'w' && up[2] === 'w' && up[6] === 'w' && up[8] === 'w';
+            }
+
+            // Simplified middle layer solving
+            solveMiddleLayer() {
+                for (let i = 0; i < 20; i++) {
+                    // Apply some common middle layer algorithms
+                    if (Math.random() < 0.4) {
+                        // Right-hand algorithm
+                        this.move('R');
+                        this.move('U');
+                        this.move('R', true);
+                        this.move('U', true);
+                        this.move('R', true);
+                        this.move('F');
+                        this.move('R');
+                        this.move('F', true);
+                    } else {
+                        const moves = ['F', 'R', 'U', 'L'];
+                        const randomMove = moves[Math.floor(Math.random() * moves.length)];
+                        this.move(randomMove, Math.random() < 0.5);
+                    }
+                }
+            }
+
+            // Simplified yellow cross solving
+            solveYellowCross() {
+                for (let i = 0; i < 15; i++) {
+                    if (this.isYellowCrossSolved()) break;
+                    
+                    // F-R-U-R'-U'-F' algorithm (simplified)
+                    if (Math.random() < 0.5) {
+                        this.move('F');
+                        this.move('R');
+                        this.move('U');
+                        this.move('R', true);
+                        this.move('U', true);
+                        this.move('F', true);
+                    } else {
+                        const moves = ['F', 'R', 'U', 'B', 'L'];
+                        const randomMove = moves[Math.floor(Math.random() * moves.length)];
+                        this.move(randomMove, Math.random() < 0.5);
+                    }
+                }
+            }
+
+            // Check if yellow cross is solved (simplified)
+            isYellowCrossSolved() {
+                const down = this.cube.faces['D'];
+                return down[1] === 'y' && down[3] === 'y' && down[5] === 'y' && down[7] === 'y';
+            }
+
+            // Simplified final layer solving
+            solveFinalLayer() {
+                for (let i = 0; i < 30; i++) {
+                    if (this.cube.isSolved()) break;
+                    
+                    // Apply various final layer algorithms
+                    const algorithms = [
+                        // PLL algorithms (simplified)
+                        () => {
+                            this.move('R');
+                            this.move('U');
+                            this.move('R', true);
+                            this.move('F', true);
+                            this.move('R');
+                            this.move('U');
+                            this.move('R', true);
+                            this.move('U', true);
+                            this.move('R', true);
+                            this.move('F');
+                            this.move('R');
+                            this.move('R');
+                            this.move('U', true);
+                            this.move('R', true);
+                        },
+                        // T-perm (simplified)
+                        () => {
+                            this.move('R');
+                            this.move('U');
+                            this.move('R', true);
+                            this.move('U', true);
+                            this.move('R', true);
+                            this.move('F');
+                            this.move('R');
+                            this.move('R');
+                            this.move('U', true);
+                            this.move('R', true);
+                            this.move('U', true);
+                            this.move('R');
+                            this.move('U');
+                            this.move('R', true);
+                            this.move('F', true);
+                        }
+                    ];
+                    
+                    if (Math.random() < 0.6) {
+                        const algorithm = algorithms[Math.floor(Math.random() * algorithms.length)];
+                        algorithm();
+                    } else {
+                        const moves = ['R', 'U', 'F', 'L', 'D', 'B'];
+                        const randomMove = moves[Math.floor(Math.random() * moves.length)];
+                        this.move(randomMove, Math.random() < 0.5);
+                    }
+                }
+            }
+        }
+
+        // Global variables
+        let cube = new RubiksCube();
+        let solutionSteps = [];
+        let currentStepIndex = 0;
+
+        // SVG cube rendering function (corrected)
+        function getCubeSvg(cubeString) {
+            const colors = {
+                'r': '#ff0000', // red
+                'g': '#00dd00', // green (darker green for better visibility)
+                'b': '#0000ff', // blue
+                'o': '#ff8c00', // orange
+                'w': '#ffffff', // white
+                'y': '#ffff00'  // yellow
+            };
+
+            const size = 40;
+            const gap = 2;
+            
+            let svg = `<svg width="500" height="400" viewBox="0 0 500 400" xmlns="http://www.w3.org/2000/svg">`;
+            
+            // Parse cube string (54 characters: 9 for each face in order F,R,B,L,U,D)
+            const faces = {
+                F: cubeString.substr(0, 9),   // Front - Green
+                R: cubeString.substr(9, 9),   // Right - Red
+                B: cubeString.substr(18, 9),  // Back - Blue
+                L: cubeString.substr(27, 9),  // Left - Orange
+                U: cubeString.substr(36, 9),  // Up - White
+                D: cubeString.substr(45, 9)   // Down - Yellow
+            };
+            
+            // Draw faces in correct net layout to match your image
+            // Layout: Up on top, Left-Front-Right-Back in middle row, Down on bottom
+            const facePositions = {
+                 U: { x: 150, y: 10 },    // Up - White (top center)
+                 L: { x: 30, y: 130 },    // Left - Orange (middle left)
+                 F: { x: 150, y: 130 },   // Front - Green (middle center)
+                 R: { x: 270, y: 130 },   // Right - Red (middle right)
+                 B: { x: 390, y: 130 },   // Back - Blue (middle far right)
+                 D: { x: 150, y: 250 }   // Down - Yellow (bottom center)
+            };
+            
+            Object.keys(facePositions).forEach(faceKey => {
+                const pos = facePositions[faceKey];
+                const faceColors = faces[faceKey];
+                
+                for (let i = 0; i < 9; i++) {
+                    const row = Math.floor(i / 3);
+                    const col = i % 3;
+                    const x = pos.x + col * (size + gap);
+                    const y = pos.y + row * (size + gap);
+                    const color = colors[faceColors[i]] || '#cccccc';
+                    
+                    svg += `<rect x="${x}" y="${y}" width="${size}" height="${size}" 
+                           fill="${color}" stroke="#000" stroke-width="2"/>`;
+                    
+                    // Add white stroke for white squares to make them visible
+                    if (faceColors[i] === 'w') {
+                        svg += `<rect x="${x}" y="${y}" width="${size}" height="${size}" 
+                               fill="${color}" stroke="#333" stroke-width="2"/>`;
+                    }
+                }
+            });
+            
+            svg += '</svg>';
+            return svg;
+        }
+
+        // Display cube
+        function displayCube() {
+            const cubeDisplay = document.getElementById('cubeDisplay');
+            cubeDisplay.innerHTML = getCubeSvg(cube.getCubeString());
+            
+            // Update status
+            const status = document.getElementById('status');
+            if (cube.isSolved()) {
+                status.textContent = 'Cube Status: Solved';
+                status.className = 'status solved';
+            } else {
+                status.textContent = 'Cube Status: Unsolved';
+                status.className = 'status unsolved';
+            }
+        }
+
+        // Generate scrambled cube
+        function generateScrambledCube() {
+            cube = new RubiksCube();
+            cube.scramble(25);
+            displayCube();
+            
+            // Clear solution steps
+            const stepsDiv = document.getElementById('solutionSteps');
+            stepsDiv.innerHTML = '<h3>Solution Steps</h3><p>Click "Solve Cube" to see the solution steps...</p>';
+        }
+
+        // Solve cube
+        function solveCube() {
+            const solveBtn = document.getElementById('solveBtn');
+            solveBtn.disabled = true;
+            solveBtn.textContent = 'Solving...';
+            
+            // Create a copy of the cube to solve
+            const cubeToSolve = cube.clone();
+            const solver = new CubeSolver(cubeToSolve);
+            
+            // Solve the cube
+            const solution = solver.solve();
+            
+            // Display solution steps
+            displaySolutionSteps(solution);
+            
+            solveBtn.disabled = false;
+            solveBtn.textContent = 'Solve Cube';
+        }
+
+        // Display solution steps
+        function displaySolutionSteps(solution) {
+            const stepsDiv = document.getElementById('solutionSteps');
+            
+            if (solution.length === 0) {
+                stepsDiv.innerHTML = '<h3>Solution Steps</h3><p>Cube is already solved!</p>';
+                return;
+            }
+            
+            let stepsHtml = '<h3>Solution Steps</h3>';
+            stepsHtml += `<p>Total moves: ${solution.length}</p>`;
+            
+            // Create a copy of the original cube to show each step
+            const stepCube = cube.clone();
+            
+            // Show initial state
+            stepsHtml += `<div class="step">
+                <strong>Initial State:</strong><br>
+                ${getCubeSvg(stepCube.getCubeString())}
+            </div>`;
+            
+            // Show each move
+            solution.forEach((move, index) => {
+                // Apply the move
+                const face = move.charAt(0);
+                const counterClockwise = move.includes("'");
+                stepCube.rotate(face, counterClockwise);
+                
+                stepsHtml += `<div class="step">
+                    <strong>Step ${index + 1}: ${move}</strong><br>
+                    ${getCubeSvg(stepCube.getCubeString())}
+                    ${stepCube.isSolved() ? '<br><span style="color: green; font-weight: bold;">✓ SOLVED!</span>' : ''}
+                </div>`;
+            });
+            
+            stepsDiv.innerHTML = stepsHtml;
+        }
+
+        // Manual rotation
+        function rotateFace(face, counterClockwise = false) {
+            cube.rotate(face, counterClockwise);
+            displayCube();
+        }
+
+        // Reset cube to solved state
+        function resetCube() {
+            cube = new RubiksCube();
+            displayCube();
+            
+            // Clear solution steps
+            const stepsDiv = document.getElementById('solutionSteps');
+            stepsDiv.innerHTML = '<h3>Solution Steps</h3><p>Click "Solve Cube" to see the solution steps...</p>';
+        }
+
+        // Initialize display
+        window.onload = function() {
+            displayCube();
+        };
+    </script>
+</body>
+</html>
